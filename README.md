@@ -16,4 +16,4 @@ maturin develop --release
 
 You will need a copy of the `lineitem.parquet` file that is generated within
 datafusion-python repository under the examples. Place this file in
-`datafusion-python`.
+`./python-example`.
