@@ -11,7 +11,7 @@ requirements from that repository, but if you have it's working environment set
 up then you should be able to build this code with
 
 ```shell
-maturin develop
+maturin develop --release
 ```
 
 You will need a copy of the `lineitem.parquet` file that is generated within
