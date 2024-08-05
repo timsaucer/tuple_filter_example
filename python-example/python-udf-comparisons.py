@@ -22,7 +22,7 @@ import pyarrow as pa
 import pyarrow.compute as pc
 import time
 
-from tuple_filter_example import tuple_filter_fn
+from tuple_filter_example import tuple_filter_fn, TupleFilterClass
 
 path = os.path.dirname(os.path.abspath(__file__))
 filepath = os.path.join(path, "./lineitem.parquet")
@@ -125,7 +125,7 @@ def is_of_interest_impl(
 
 is_of_interest = udf(
     is_of_interest_impl,
-    [pa.int32(), pa.int32(), pa.utf8()],
+    [pa.int64(), pa.int64(), pa.utf8()],
     pa.bool_(),
     "stable",
 )
@@ -173,7 +173,7 @@ def udf_using_pyarrow_compute_impl(
 
 udf_using_pyarrow_compute = udf(
     udf_using_pyarrow_compute_impl,
-    [pa.int32(), pa.int32(), pa.utf8()],
+    [pa.int64(), pa.int64(), pa.utf8()],
     pa.bool_(),
     "stable",
 )
@@ -188,11 +188,16 @@ print(
 )
 start_time = time.time()
 
-
+# In the next two examples we will use rust defined functions.
+# This first one is the simplest way to write a rust function where
+# there is no additional data we need to provide. In this example, we
+# hard code the values of interest. But there can be many examples of
+# UDFs where you do not need any additional data beyond what is in
+# the expressions.
 
 udf_using_custom_rust_fn = udf(
     tuple_filter_fn,
-    [pa.int32(), pa.int32(), pa.utf8()],
+    [pa.int64(), pa.int64(), pa.utf8()],
     pa.bool_(),
     "stable",
 )
@@ -207,3 +212,30 @@ print(
 )
 start_time = time.time()
 
+# Suppose you do need to provide some additional data. In this case it
+# is the values we are looking for. The below code creates an instance
+# of a python wrapped rust struct. When we create it, we pass in the
+# values of interest. On the rust side we have implemented __call__
+# on this object, so we can treat it just like a python function as
+# far as the UDF below is concerned. One important note here is that
+# in the `udf` call below we must provide `name`.
+
+tuple_filter_class = TupleFilterClass(values_of_interest)
+
+udf_using_custom_rust_fn_with_data = udf(
+    tuple_filter_class,
+    [pa.int64(), pa.int64(), pa.utf8()],
+    pa.bool_(),
+    "stable",
+    name="tuple_filter_with_data"   
+)
+
+df_udf_custom_rust_fn_with_data = df_lineitem.filter(
+    udf_using_custom_rust_fn_with_data(col("l_partkey"), col("l_suppkey"), col("l_returnflag"))
+)
+
+num_rows = df_udf_custom_rust_fn_with_data.count()
+print(
+    f"UDF filtering using a custom rust struct has number {num_rows} rows and took {time.time() - start_time} s"
+)
+start_time = time.time()
