@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from typing import List
 from datafusion import SessionContext, col, lit, udf, functions as F
 import os
 from datafusion.expr import Expr
@@ -22,7 +23,7 @@ import pyarrow as pa
 import pyarrow.compute as pc
 import time
 
-from tuple_filter_example import tuple_filter_fn, TupleFilterClass
+from tuple_filter_example import tuple_filter_fn, TupleFilterClass, TupleFilterDirectIterationClass
 
 path = os.path.dirname(os.path.abspath(__file__))
 filepath = os.path.join(path, "./lineitem.parquet")
@@ -105,7 +106,6 @@ print(
 start_time = time.time()
 
 # Instead try a python UDF
-
 
 def is_of_interest_impl(
     partkey_arr: pa.Array,
@@ -237,5 +237,29 @@ df_udf_custom_rust_fn_with_data = df_lineitem.filter(
 num_rows = df_udf_custom_rust_fn_with_data.count()
 print(
     f"UDF filtering using a custom rust struct has number {num_rows} rows and took {time.time() - start_time} s"
+)
+start_time = time.time()
+
+
+# Custom iterator
+
+
+custom_iterator_class = TupleFilterDirectIterationClass(values_of_interest)
+
+udf_custom_iterator = udf(
+    custom_iterator_class,
+    [pa.int64(), pa.int64(), pa.utf8()],
+    pa.bool_(),
+    "stable",
+    name="tuple_filter_with_data"
+)
+
+df_custom_iterator = df_lineitem.filter(
+    udf_custom_iterator(col("l_partkey"), col("l_suppkey"), col("l_returnflag"))
+)
+
+num_rows = df_custom_iterator.count()
+print(
+    f"UDF filtering using a custom iterator {num_rows} rows and took {time.time() - start_time} s"
 )
 start_time = time.time()
